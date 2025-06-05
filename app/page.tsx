@@ -51,6 +51,14 @@ export default function FidgetBall() {
     color: '#ff6b6b'
   })
   
+  // Track app loading state
+  const [appLoadingState, setAppLoadingState] = useState({
+    canvasInitialized: false,
+    hapticsChecked: false,
+    gameLoopStarted: false,
+    farcasterReady: false
+  })
+  
   // Track which collision zones the ball is currently in
   const inZonesRef = useRef<CollisionZones>({ left: false, right: false, top: false, bottom: false })
   const audioPlayedRef = useRef<CollisionZones>({ left: false, right: false, top: false, bottom: false })
@@ -117,6 +125,8 @@ export default function FidgetBall() {
       } catch (error) {
         console.log('Haptics not available:', error)
         setHapticsSupported(false)
+      } finally {
+        setAppLoadingState(prev => ({ ...prev, hapticsChecked: true }))
       }
     }
     
@@ -139,6 +149,9 @@ export default function FidgetBall() {
           y: isFirstLoad ? height / 2 : Math.min(prevBall.y, height - prevBall.radius)
         }
       })
+      
+      // Mark canvas as initialized
+      setAppLoadingState(prev => ({ ...prev, canvasInitialized: true }))
     }
 
     updateCanvasSize()
@@ -370,29 +383,43 @@ export default function FidgetBall() {
     animationFrameRef.current = requestAnimationFrame(gameLoop)
   }
 
-  // Initialize Farcaster SDK
-  useEffect(() => {
-    const initializeFarcasterSDK = async () => {
-      try {
-        // Call ready to hide the splash screen when the interface is loaded
-        await sdk.actions.ready()
-        console.log('Farcaster SDK initialized successfully')
-      } catch (error) {
-        console.log('Farcaster SDK not available or failed to initialize:', error)
-      }
-    }
-    
-    initializeFarcasterSDK()
-  }, [])
-
+  // Start game loop
   useEffect(() => {
     gameLoop()
+    setAppLoadingState(prev => ({ ...prev, gameLoopStarted: true }))
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [ball, deviceMotion, permissionGranted])
+
+  // Initialize Farcaster SDK only when app is fully loaded
+  useEffect(() => {
+    const isAppReady = appLoadingState.canvasInitialized && 
+                      appLoadingState.hapticsChecked && 
+                      appLoadingState.gameLoopStarted &&
+                      !appLoadingState.farcasterReady
+
+    if (isAppReady) {
+      const initializeFarcasterSDK = async () => {
+        try {
+          // Small delay to ensure UI is fully rendered
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
+          // Call ready to hide the splash screen when the interface is loaded
+          await sdk.actions.ready()
+          console.log('Farcaster SDK initialized successfully - app is ready!')
+          setAppLoadingState(prev => ({ ...prev, farcasterReady: true }))
+        } catch (error) {
+          console.log('Farcaster SDK not available or failed to initialize:', error)
+          setAppLoadingState(prev => ({ ...prev, farcasterReady: true }))
+        }
+      }
+      
+      initializeFarcasterSDK()
+    }
+  }, [appLoadingState])
 
   return (
     <div className="game-container">
