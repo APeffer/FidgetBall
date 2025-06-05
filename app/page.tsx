@@ -100,10 +100,19 @@ export default function FidgetBall() {
   const triggerHaptic = async () => {
     try {
       if (hapticsSupported) {
-        await sdk.haptics.impactOccurred('medium')
+        // Add timeout for haptic calls too
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Haptic timeout')), 1000)
+        )
+        
+        const hapticPromise = sdk.haptics.impactOccurred('medium')
+        await Promise.race([hapticPromise, timeoutPromise])
       }
     } catch (error) {
-      console.log('Haptic feedback failed:', error)
+      // CSP restrictions might block this - fall back gracefully
+      console.log('Haptic feedback failed (possibly CSP-related):', error)
+      // Optionally fall back to audio feedback
+      playBlip()
     }
   }
 
@@ -115,15 +124,24 @@ export default function FidgetBall() {
     }
   }
 
-  // Check haptics support
+  // Check haptics support with CSP-safe error handling
   useEffect(() => {
     const checkHapticsSupport = async () => {
       try {
-        const capabilities = await sdk.getCapabilities()
-        const supported = capabilities.includes('haptics.impactOccurred')
+        // Add timeout to prevent hanging on blocked network requests
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        )
+        
+        const capabilitiesPromise = sdk.getCapabilities()
+        const capabilities = await Promise.race([capabilitiesPromise, timeoutPromise])
+        
+        const supported = Array.isArray(capabilities) && capabilities.includes('haptics.impactOccurred')
         setHapticsSupported(supported)
+        console.log('Haptics capabilities checked successfully:', supported)
       } catch (error) {
-        console.log('Haptics not available:', error)
+        // This could fail due to CSP restrictions - that's okay
+        console.log('Haptics check failed (possibly CSP-related):', error)
         setHapticsSupported(false)
       } finally {
         setAppLoadingState(prev => ({ ...prev, hapticsChecked: true }))
@@ -407,12 +425,21 @@ export default function FidgetBall() {
           // Small delay to ensure UI is fully rendered
           await new Promise(resolve => setTimeout(resolve, 100))
           
+          // Add timeout for ready call to prevent hanging on CSP issues
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('SDK ready timeout')), 5000)
+          )
+          
           // Call ready to hide the splash screen when the interface is loaded
-          await sdk.actions.ready()
+          const readyPromise = sdk.actions.ready()
+          await Promise.race([readyPromise, timeoutPromise])
+          
           console.log('Farcaster SDK initialized successfully - app is ready!')
           setAppLoadingState(prev => ({ ...prev, farcasterReady: true }))
         } catch (error) {
-          console.log('Farcaster SDK not available or failed to initialize:', error)
+          // CSP restrictions might prevent SDK calls - app should still work
+          console.log('Farcaster SDK not available or failed to initialize (possibly CSP-related):', error)
+          console.log('App will continue to work outside of Farcaster environment')
           setAppLoadingState(prev => ({ ...prev, farcasterReady: true }))
         }
       }
@@ -421,16 +448,31 @@ export default function FidgetBall() {
     }
   }, [appLoadingState])
 
+  // Show loading state if app is not yet ready
+  const isAppLoading = !appLoadingState.canvasInitialized || 
+                      !appLoadingState.hapticsChecked || 
+                      !appLoadingState.gameLoopStarted
+
   return (
     <div className="game-container">
+      {isAppLoading && (
+        <div className="loading-overlay">
+          <div className="loading-content">
+            <div className="loading-spinner"></div>
+            <p>Loading FidgetBall...</p>
+          </div>
+        </div>
+      )}
+      
       <canvas
         ref={canvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
         className="game-canvas"
+        style={{ opacity: isAppLoading ? 0.3 : 1 }}
       />
       
-      <div className="controls">
+      <div className="controls" style={{ opacity: isAppLoading ? 0.3 : 1 }}>
         {!permissionGranted ? (
           <>
             <p>Tilt your device to control the ball!</p>
