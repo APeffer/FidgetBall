@@ -6,12 +6,12 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-          {
             key: 'Permissions-Policy',
             value: 'accelerometer=*, gyroscope=*',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz;",
           },
         ],
       },
