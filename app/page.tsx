@@ -40,7 +40,7 @@ export default function FidgetBall() {
   const [gravityDisplay, setGravityDisplay] = useState(1) // 0-20 scale, default to 1
   const [audioPitch, setAudioPitch] = useState(800)
   const [ballColor, setBallColor] = useState('#ff6b6b')
-  const [useVibration, setUseVibration] = useState(false)
+  const [useHaptics, setUseHaptics] = useState(false)
   const [hapticsSupported, setHapticsSupported] = useState(false)
   const [ball, setBall] = useState<Ball>({
     x: 200,
@@ -60,30 +60,6 @@ export default function FidgetBall() {
   const BOUNCE_DAMPING = bounciness // User adjustable bounciness
   const MAX_VELOCITY = 8       // Cap maximum velocity
   const COLLISION_ZONE_SIZE = 10 // Invisible zone extends 10px from walls
-
-  const checkHapticCapabilities = async () => {
-    try {
-      const capabilities = await sdk.getCapabilities()
-      const hasHaptics = capabilities.includes('haptics.impactOccurred')
-      setHapticsSupported(hasHaptics)
-      console.log('Haptics supported:', hasHaptics)
-    } catch (error) {
-      console.log('Could not check haptic capabilities:', error)
-      setHapticsSupported(false)
-    }
-  }
-
-  const triggerFeedback = async () => {
-    if (useVibration && hapticsSupported) {
-      try {
-        await sdk.haptics.impactOccurred('medium')
-      } catch (error) {
-        console.log('Haptic feedback failed:', error)
-      }
-    } else {
-      playBlip()
-    }
-  }
 
   const playBlip = () => {
     try {
@@ -112,6 +88,40 @@ export default function FidgetBall() {
       console.log('Audio not available:', error)
     }
   }
+
+  const triggerHaptic = async () => {
+    try {
+      if (hapticsSupported) {
+        await sdk.haptics.impactOccurred('medium')
+      }
+    } catch (error) {
+      console.log('Haptic feedback failed:', error)
+    }
+  }
+
+  const handleCollisionFeedback = () => {
+    if (useHaptics && hapticsSupported) {
+      triggerHaptic()
+    } else {
+      playBlip()
+    }
+  }
+
+  // Check haptics support
+  useEffect(() => {
+    const checkHapticsSupport = async () => {
+      try {
+        const capabilities = await sdk.getCapabilities()
+        const supported = capabilities.includes('haptics.impactOccurred')
+        setHapticsSupported(supported)
+      } catch (error) {
+        console.log('Haptics not available:', error)
+        setHapticsSupported(false)
+      }
+    }
+    
+    checkHapticsSupport()
+  }, [])
 
   // Initialize canvas size based on viewport
   useEffect(() => {
@@ -166,8 +176,6 @@ export default function FidgetBall() {
               } catch (error) {
                 console.log('Audio context initialization failed:', error)
               }
-              // Check haptic capabilities
-              checkHapticCapabilities()
               setPermissionGranted(true)
               startDeviceMotionListening()
             } else {
@@ -186,8 +194,6 @@ export default function FidgetBall() {
           } catch (error) {
             console.log('Audio context initialization failed:', error)
           }
-          // Check haptic capabilities
-          checkHapticCapabilities()
           setPermissionGranted(true)
           startDeviceMotionListening()
         }
@@ -261,14 +267,14 @@ export default function FidgetBall() {
         bottom: newY >= canvasSize.height - prevBall.radius - COLLISION_ZONE_SIZE
       }
 
-      // Check for zone entry and trigger feedback
+      // Check for zone entry and provide feedback
       if ((newZones.left && !inZonesRef.current.left && !audioPlayedRef.current.left) ||
           (newZones.right && !inZonesRef.current.right && !audioPlayedRef.current.right) ||
           (newZones.top && !inZonesRef.current.top && !audioPlayedRef.current.top) ||
           (newZones.bottom && !inZonesRef.current.bottom && !audioPlayedRef.current.bottom)) {
-        triggerFeedback()
+        handleCollisionFeedback()
         
-        // Mark audio as played for zones we just entered
+        // Mark feedback as played for zones we just entered
         if (newZones.left && !inZonesRef.current.left) audioPlayedRef.current.left = true
         if (newZones.right && !inZonesRef.current.right) audioPlayedRef.current.right = true
         if (newZones.top && !inZonesRef.current.top) audioPlayedRef.current.top = true
@@ -363,6 +369,21 @@ export default function FidgetBall() {
     draw()
     animationFrameRef.current = requestAnimationFrame(gameLoop)
   }
+
+  // Initialize Farcaster SDK
+  useEffect(() => {
+    const initializeFarcasterSDK = async () => {
+      try {
+        // Call ready to hide the splash screen when the interface is loaded
+        await sdk.actions.ready()
+        console.log('Farcaster SDK initialized successfully')
+      } catch (error) {
+        console.log('Farcaster SDK not available or failed to initialize:', error)
+      }
+    }
+    
+    initializeFarcasterSDK()
+  }, [])
 
   useEffect(() => {
     gameLoop()
@@ -501,28 +522,25 @@ export default function FidgetBall() {
                   />
                 </div>
                 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                    Feedback Mode
-                  </label>
-                  <button
-                    onClick={() => setUseVibration(!useVibration)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      backgroundColor: useVibration ? '#4CAF50' : '#ff6b6b',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {useVibration ? '📳 Vibration' : '🔊 Audio'}
-                    {!hapticsSupported && useVibration && ' (Unsupported)'}
-                  </button>
-                </div>
+                {hapticsSupported && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <button 
+                      onClick={() => setUseHaptics(!useHaptics)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        borderRadius: '4px',
+                        background: useHaptics ? 'rgba(255,255,255,0.2)' : 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {useHaptics ? '🔇 Vibration ON' : '🔊 Audio ON'}
+                    </button>
+                  </div>
+                )}
                 
                 <button 
                   className="permission-button"

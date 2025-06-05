@@ -7,13 +7,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'FidgetBall',
     description: 'A 2D ball that rolls around based on gyroscope input',
-    images: ['https://your-domain.com/og-image.png'],
+    type: 'website',
   },
   other: {
     'fc:frame': 'vNext',
-    'fc:frame:image': 'https://your-domain.com/frame-image.png',
     'fc:frame:button:1': 'Play FidgetBall',
-    'fc:frame:post_url': 'https://your-domain.com',
   },
 }
 
