@@ -325,13 +325,13 @@ export default function FidgetBall() {
       if (newX <= prevBall.radius || newX >= canvasSize.width - prevBall.radius) {
         newVx = -newVx * BOUNCE_DAMPING // Better bounce retention
         newX = Math.max(prevBall.radius, Math.min(canvasSize.width - prevBall.radius, newX))
-        console.log('X collision detected!', { newX, radius: prevBall.radius, width: canvasSize.width })
+        //console.log('X collision detected!', { newX, radius: prevBall.radius, width: canvasSize.width })
       }
 
       if (newY <= prevBall.radius || newY >= canvasSize.height - prevBall.radius) {
         newVy = -newVy * BOUNCE_DAMPING // Better bounce retention
         newY = Math.max(prevBall.radius, Math.min(canvasSize.height - prevBall.radius, newY))
-        console.log('Y collision detected!', { newY, radius: prevBall.radius, height: canvasSize.height })
+        //console.log('Y collision detected!', { newY, radius: prevBall.radius, height: canvasSize.height })
       }
 
       return {
